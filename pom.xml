@@ -90,15 +90,38 @@
             <build>
                 <plugins>
                     <!--
-                        Build a binary RPM after the fat JAR has been produced by
-                        maven-shade-plugin.
-
-                        All file staging and the rpmbuild invocation are delegated to
-                        packaging/build-rpm.sh so that Cygwin path conversion (cygpath)
-                        can be applied transparently when building on Windows/Cygwin.
-                        This avoids the mixed Windows/Unix path that caused:
-                          "failed to stat …/C:\Users\…/rpmbuild/SPECS/…"
+                        Normalize all packaging/ files to Unix line endings (LF) before
+                        the RPM build runs.  This is required because Windows Git clients
+                        with core.autocrlf=true check out files with CRLF, which causes
+                        bash to fail with "$'\r': command not found" errors even when
+                        .gitattributes enforces eol=lf for new clones.  The normalized
+                        copies are written to target/scripts/ so the source tree is never
+                        modified.
                     -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>normalize-packaging-scripts</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <mkdir dir="${project.build.directory}/scripts"/>
+                                        <fixcrlf srcdir="${project.basedir}/packaging"
+                                                 destdir="${project.build.directory}/scripts"
+                                                 eol="unix"
+                                                 includes="*.sh,*.spec,*.service"/>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
                     <plugin>
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>exec-maven-plugin</artifactId>
@@ -113,13 +136,13 @@
                                 <configuration>
                                     <executable>bash</executable>
                                     <arguments>
-                                        <argument>${project.basedir}/packaging/build-rpm.sh</argument>
+                                        <argument>${project.build.directory}/scripts/build-rpm.sh</argument>
                                     </arguments>
                                     <environmentVariables>
                                         <PROJECT_ARTIFACT>${project.artifactId}</PROJECT_ARTIFACT>
                                         <PROJECT_VERSION>${project.version}</PROJECT_VERSION>
                                         <JAR_PATH>${project.build.directory}/${project.artifactId}-${project.version}.jar</JAR_PATH>
-                                        <PACKAGING_DIR>${project.basedir}/packaging</PACKAGING_DIR>
+                                        <PACKAGING_DIR>${project.build.directory}/scripts</PACKAGING_DIR>
                                         <BUILD_DIR>${project.build.directory}</BUILD_DIR>
                                     </environmentVariables>
                                 </configuration>
