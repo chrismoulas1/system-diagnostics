@@ -45,6 +45,77 @@
         </dependency>
     </dependencies>
 
+    <profiles>
+        <!-- Run 'mvn verify -Prpm' to build the fat JAR and then assemble the RPM.
+             Prerequisite: rpmbuild must be installed (e.g. 'zypper install rpm-build' on SLES). -->
+        <profile>
+            <id>rpm</id>
+            <properties>
+                <rpm.build.dir>${user.home}/rpmbuild</rpm.build.dir>
+            </properties>
+            <build>
+                <plugins>
+                    <!-- Stage all RPM sources into ${rpm.build.dir} -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>stage-rpm-sources</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <mkdir dir="${rpm.build.dir}/SOURCES"/>
+                                        <mkdir dir="${rpm.build.dir}/SPECS"/>
+                                        <copy failonerror="true"
+                                              file="${project.build.directory}/${project.artifactId}-${project.version}.jar"
+                                              todir="${rpm.build.dir}/SOURCES"/>
+                                        <copy failonerror="true"
+                                              file="${project.basedir}/packaging/system-diagnostics.sh"
+                                              todir="${rpm.build.dir}/SOURCES"/>
+                                        <copy failonerror="true"
+                                              file="${project.basedir}/packaging/system-diagnostics.service"
+                                              todir="${rpm.build.dir}/SOURCES"/>
+                                        <copy failonerror="true"
+                                              file="${project.basedir}/packaging/system-diagnostics.spec"
+                                              todir="${rpm.build.dir}/SPECS"/>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- Invoke rpmbuild to produce the final RPM -->
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.3.0</version>
+                        <executions>
+                            <execution>
+                                <id>build-rpm</id>
+                                <phase>integration-test</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>rpmbuild</executable>
+                                    <arguments>
+                                        <argument>-bb</argument>
+                                        <argument>${rpm.build.dir}/SPECS/system-diagnostics.spec</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
     <build>
         <plugins>
             <!-- Build an executable fat JAR with all dependencies included -->

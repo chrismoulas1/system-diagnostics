@@ -89,21 +89,16 @@ The `packaging/` directory contains all files needed to build the RPM:
 
 ### Building the RPM
 
+Activate the `rpm` Maven profile to build the fat JAR and assemble the RPM in a single command:
+
 ```bash
-# Build the fat JAR first
-mvn package
-
-# Stage sources for rpmbuild
-mkdir -p ~/rpmbuild/SOURCES ~/rpmbuild/SPECS
-cp target/system-diagnostics-1.0.0.jar ~/rpmbuild/SOURCES/
-cp packaging/system-diagnostics.sh     ~/rpmbuild/SOURCES/
-cp packaging/system-diagnostics.service ~/rpmbuild/SOURCES/
-cp packaging/system-diagnostics.spec   ~/rpmbuild/SPECS/
-
-# Build the RPM
-rpmbuild -bb ~/rpmbuild/SPECS/system-diagnostics.spec
+mvn verify -Prpm
 # Result: ~/rpmbuild/RPMS/x86_64/system-diagnostics-1.0.0-1.x86_64.rpm
 ```
+
+The profile (defined in `pom.xml`) automatically:
+1. Stages the fat JAR, startup script, systemd unit, and spec file into `~/rpmbuild/`
+2. Runs `rpmbuild -bb` to produce the final RPM
 
 ### Installing the RPM
 
