@@ -82,4 +82,52 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Activate RPM packaging only on Linux or Cygwin (where rpmbuild is available) -->
+        <profile>
+            <id>rpm</id>
+            <build>
+                <plugins>
+                    <!--
+                        Build a binary RPM after the fat JAR has been produced by
+                        maven-shade-plugin.
+
+                        All file staging and the rpmbuild invocation are delegated to
+                        packaging/build-rpm.sh so that Cygwin path conversion (cygpath)
+                        can be applied transparently when building on Windows/Cygwin.
+                        This avoids the mixed Windows/Unix path that caused:
+                          "failed to stat …/C:\Users\…/rpmbuild/SPECS/…"
+                    -->
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.3.0</version>
+                        <executions>
+                            <execution>
+                                <id>build-rpm</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <arguments>
+                                        <argument>${project.basedir}/packaging/build-rpm.sh</argument>
+                                    </arguments>
+                                    <environmentVariables>
+                                        <PROJECT_ARTIFACT>${project.artifactId}</PROJECT_ARTIFACT>
+                                        <PROJECT_VERSION>${project.version}</PROJECT_VERSION>
+                                        <JAR_PATH>${project.build.directory}/${project.artifactId}-${project.version}.jar</JAR_PATH>
+                                        <PACKAGING_DIR>${project.basedir}/packaging</PACKAGING_DIR>
+                                        <BUILD_DIR>${project.build.directory}</BUILD_DIR>
+                                    </environmentVariables>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
