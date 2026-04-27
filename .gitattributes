@@ -1,0 +1,6 @@
+# Force Unix line endings for files that must not have CRLF.
+# Without this, Windows Git clients (core.autocrlf=true) convert LF→CRLF
+# on checkout, which breaks shell scripts executed by bash/Cygwin.
+
+*.sh    text eol=lf
+*.spec  text eol=lf
