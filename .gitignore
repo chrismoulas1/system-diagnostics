@@ -1,0 +1,23 @@
+# Java build artifacts
+target/
+*.class
+
+# Maven wrapper cache
+.mvn/
+
+# IDE files
+.idea/
+*.iml
+.settings/
+.classpath
+.project
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files produced at runtime (not tracked in version control)
+*.log
+
+# Runtime-generated reports
+/var/

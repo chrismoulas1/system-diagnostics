@@ -1,0 +1,28 @@
+[Unit]
+Description=System Diagnostics Service
+Documentation=https://github.com/chrismoulas1/system-diagnostics
+After=network.target syslog.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+# Log directory must exist before the service starts
+ExecStartPre=/bin/mkdir -p /var/siemens/common/log
+
+# Use the IBM JRE installed at the Siemens standard path
+ExecStart=/opt/siemens/diagnostics/bin/system-diagnostics.sh
+
+Restart=on-failure
+RestartSec=30s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=system-diagnostics
+
+# Allow the process to read /proc entries of other users (requires root)
+AmbientCapabilities=CAP_SYS_PTRACE
+
+[Install]
+WantedBy=multi-user.target
