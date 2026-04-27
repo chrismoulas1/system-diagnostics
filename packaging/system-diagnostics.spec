@@ -41,7 +41,6 @@ rm -rf %{buildroot}
 mkdir -p %{buildroot}%{install_dir}/lib
 mkdir -p %{buildroot}%{install_dir}/bin
 mkdir -p %{buildroot}/etc/systemd/system
-mkdir -p %{buildroot}%{log_dir}
 
 # JAR (pre-built fat JAR placed in SOURCES)
 install -m 0644 %{_sourcedir}/system-diagnostics-%{version}.jar \
@@ -63,7 +62,6 @@ install -m 0644 %{_sourcedir}/system-diagnostics.service \
 %{install_dir}/lib/system-diagnostics-%{version}.jar
 %{install_dir}/bin/system-diagnostics.sh
 /etc/systemd/system/system-diagnostics.service
-%dir %{log_dir}
 
 # ---------------------------------------------------------------------------
 # Post-install: enable and start the service on first installation
