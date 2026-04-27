@@ -111,10 +111,11 @@
                                 </goals>
                                 <configuration>
                                     <target>
+                                        <mkdir dir="${project.build.directory}/scripts"/>
                                         <fixcrlf srcdir="${project.basedir}/packaging"
                                                  destdir="${project.build.directory}/scripts"
                                                  eol="unix"
-                                                 includes="**/*"/>
+                                                 includes="*.sh,*.spec,*.service"/>
                                     </target>
                                 </configuration>
                             </execution>
