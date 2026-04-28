@@ -49,6 +49,7 @@ mkdir -p "$RPMBUILD_DIR/SPECS" \
 cp "$JAR_PATH"                                   "$RPMBUILD_DIR/SOURCES/"
 cp "$PACKAGING_DIR/system-diagnostics.sh"        "$RPMBUILD_DIR/SOURCES/"
 cp "$PACKAGING_DIR/system-diagnostics.service"   "$RPMBUILD_DIR/SOURCES/"
+cp "$PACKAGING_DIR/schedule.conf"                "$RPMBUILD_DIR/SOURCES/"
 cp "$PACKAGING_DIR/system-diagnostics.spec"      "$RPMBUILD_DIR/SPECS/"
 
 # ---------------------------------------------------------------------------

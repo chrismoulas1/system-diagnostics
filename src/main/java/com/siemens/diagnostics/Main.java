@@ -53,7 +53,6 @@ public class Main {
         } else {
             // Default: long-running scheduler mode
             logger.info("System Diagnostics starting in scheduler mode.");
-            logger.info("Scheduled run times: 00:00, 09:00, 15:00, 18:00");
             logger.info("Reports will be written to: " + ReportWriter.LOG_DIR);
 
             DiagnosticsScheduler sched = new DiagnosticsScheduler();

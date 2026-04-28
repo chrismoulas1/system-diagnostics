@@ -115,7 +115,7 @@
                                         <fixcrlf srcdir="${project.basedir}/packaging"
                                                  destdir="${project.build.directory}/scripts"
                                                  eol="unix"
-                                                 includes="*.sh,*.spec,*.service"/>
+                                                 includes="*.sh,*.spec,*.service,*.conf"/>
                                     </target>
                                 </configuration>
                             </execution>
