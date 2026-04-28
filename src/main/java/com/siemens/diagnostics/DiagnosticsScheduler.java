@@ -14,8 +14,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Schedules the diagnostics run to execute four times per day:
- * 00:00, 09:00, 15:00 and 18:00 (local system time).
+ * Schedules the diagnostics run to execute at configurable hours each day (local system time).
+ *
+ * <p>The scheduled hours are loaded from
+ * {@value ScheduleConfig#CONFIG_FILE} at startup.  If that file is absent
+ * or contains no valid entries the built-in defaults (00:00, 09:00, 15:00, 18:00) are used.
  *
  * <p>Each scheduled job:
  * <ol>
@@ -30,8 +33,8 @@ public class DiagnosticsScheduler {
 
     private static final Logger logger = LoggerFactory.getLogger(DiagnosticsScheduler.class);
 
-    /** Hours at which the diagnostics run is triggered (24-hour clock) */
-    private static final int[] SCHEDULED_HOURS = {0, 9, 15, 18};
+    /** Hours at which the diagnostics run is triggered (24-hour clock), loaded from config. */
+    private final int[] scheduledHours;
 
     /** Seconds in a full day */
     private static final long DAY_SECONDS = 24L * 60 * 60;
@@ -48,6 +51,7 @@ public class DiagnosticsScheduler {
     private final PdfReportAnalyzer pdfAnalyzer;
 
     public DiagnosticsScheduler() {
+        this.scheduledHours = ScheduleConfig.loadScheduledHours();
         CommandExecutor executor = new CommandExecutor();
         this.diagnosticsService = new SystemDiagnosticsService(executor);
         this.reportWriter       = new ReportWriter();
@@ -59,12 +63,13 @@ public class DiagnosticsScheduler {
      * The method returns immediately; jobs execute on background threads.
      */
     public void start() {
-        logger.info("Starting diagnostics scheduler. Scheduled hours: 00:00, 09:00, 15:00, 18:00");
+        logger.info("Starting diagnostics scheduler. Scheduled hours: {}",
+                ScheduleConfig.formatHours(scheduledHours));
 
-        for (int hour : SCHEDULED_HOURS) {
+        for (int hour : scheduledHours) {
             long initialDelaySeconds = secondsUntilNextOccurrence(hour, 0);
-            logger.info("First run at {:02d}:00 in {} seconds (~{} minutes)",
-                    hour, initialDelaySeconds, initialDelaySeconds / 60);
+            logger.info("First run at {}:00 in {} seconds (~{} minutes)",
+                    String.format("%02d", hour), initialDelaySeconds, initialDelaySeconds / 60);
 
             final int scheduledHour = hour;
             scheduler.scheduleAtFixedRate(
@@ -82,7 +87,7 @@ public class DiagnosticsScheduler {
                 DAY_SECONDS,
                 TimeUnit.SECONDS);
 
-        logger.info("Scheduler started. {} periodic jobs registered.", SCHEDULED_HOURS.length + 1);
+        logger.info("Scheduler started. {} periodic jobs registered.", scheduledHours.length + 1);
     }
 
     /** Gracefully shuts down the scheduler, waiting up to 30 seconds. */

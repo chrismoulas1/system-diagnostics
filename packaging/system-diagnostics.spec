@@ -13,13 +13,17 @@ Requires:       /opt/siemens/share/ibm-java-x86_64-80/jre/bin/java
 %description
 System Diagnostics monitors Siemens webclient/server processes by executing
 a fixed set of Linux diagnostic commands (ps, pmap, ss, /proc inspection,
-JVM thread dumps) four times a day (00:00, 09:00, 15:00, 18:00).
+JVM thread dumps) at configurable hours each day (defaults: 00:00, 09:00, 15:00, 18:00).
+
+The schedule can be customised by editing:
+  /opt/siemens/diagnostics/conf/schedule.conf
 
 Results are stored in /var/siemens/common/log/report_<timestamp>.txt.
 A daily PDF summary report is generated automatically at 00:05 for the
 previous day's collected data.
 
 %define install_dir /opt/siemens/diagnostics
+%define conf_dir    /opt/siemens/diagnostics/conf
 %define log_dir     /var/siemens/common/log
 
 # ---------------------------------------------------------------------------
@@ -40,6 +44,7 @@ rm -rf %{buildroot}
 # Application directories
 mkdir -p %{buildroot}%{install_dir}/lib
 mkdir -p %{buildroot}%{install_dir}/bin
+mkdir -p %{buildroot}%{conf_dir}
 mkdir -p %{buildroot}/etc/systemd/system
 
 # JAR (pre-built fat JAR placed in SOURCES)
@@ -54,6 +59,10 @@ install -m 0755 %{_sourcedir}/system-diagnostics.sh \
 install -m 0644 %{_sourcedir}/system-diagnostics.service \
     %{buildroot}/etc/systemd/system/system-diagnostics.service
 
+# Schedule configuration (marked noreplace so user edits survive upgrades)
+install -m 0644 %{_sourcedir}/schedule.conf \
+    %{buildroot}%{conf_dir}/schedule.conf
+
 # ---------------------------------------------------------------------------
 # Files
 # ---------------------------------------------------------------------------
@@ -62,6 +71,7 @@ install -m 0644 %{_sourcedir}/system-diagnostics.service \
 %{install_dir}/lib/system-diagnostics-%{version}.jar
 %{install_dir}/bin/system-diagnostics.sh
 /etc/systemd/system/system-diagnostics.service
+%config(noreplace) %{conf_dir}/schedule.conf
 
 # ---------------------------------------------------------------------------
 # Post-install: enable and start the service on first installation
