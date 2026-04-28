@@ -58,6 +58,7 @@ cp "$PACKAGING_DIR/system-diagnostics.spec"      "$RPMBUILD_DIR/SPECS/"
 # inside the Maven build tree.
 # ---------------------------------------------------------------------------
 rpmbuild -bb \
+    --target x86_64-linux \
     --define "_topdir $RPMBUILD_DIR" \
     "$RPMBUILD_DIR/SPECS/system-diagnostics.spec"
 
