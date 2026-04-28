@@ -4,7 +4,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
  * Orchestrates all 12 diagnostic commands for a single run.
@@ -22,16 +21,14 @@ import java.time.format.DateTimeFormatter;
  *   <li>cat /proc/&lt;pid&gt;/smaps | grep -i stack -A 5</li>
  *   <li>ss -antp | grep &lt;pid&gt;   (count only in PDF)</li>
  *   <li>ss -m | grep &lt;pid&gt;      (count only in PDF)</li>
- *   <li>kill -3 &lt;pid&gt;           (sends SIGQUIT; captures thread dump via jstack to /var/siemens/common/logs/dumps)</li>
+ *   <li>kill -3 &lt;pid&gt;           (sends SIGQUIT; JVM writes thread dump to /var/siemens/common/log/dumps)</li>
  * </ol>
  */
 public class SystemDiagnosticsService {
 
     private static final Logger logger = LoggerFactory.getLogger(SystemDiagnosticsService.class);
 
-    static final String DUMPS_DIR = "/var/siemens/common/logs/dumps";
-    private static final DateTimeFormatter DUMP_TS_FMT =
-            DateTimeFormatter.ofPattern("yyyyMMdd_HHmmssSSS");
+    static final String DUMPS_DIR = "/var/siemens/common/log/dumps";
 
     private final CommandExecutor executor;
 
@@ -107,18 +104,19 @@ public class SystemDiagnosticsService {
         String cmd11 = "ss -m | grep " + pid;
         report.addResult(DiagnosticsReport.CMD_11, cmd11, executor.execute(cmd11));
 
-        // Command 12: send SIGQUIT to trigger a JVM thread dump and save it to the dumps directory.
-        // kill -3 writes to the target process's stderr (systemd journal); jstack captures the
-        // same information directly to a file so it is persisted in DUMPS_DIR.
+        // Command 12: send SIGQUIT to trigger a JVM thread dump.
+        // The JVM (even with JRE only) writes the thread dump to a file in DUMPS_DIR.
+        // We sleep briefly after the signal to allow the JVM time to finish writing,
+        // then find and report the newest file in the dumps directory.
         // pid is guaranteed numeric here (validated by extractFirstPid) to prevent injection.
         String cmd12 = "kill -3 " + pid;
-        String dumpFile = DUMPS_DIR + "/threaddump_" + now.format(DUMP_TS_FMT) + ".txt";
         String numericPid = pid.replaceAll("[^0-9]", "");
-        String captureCmd = "mkdir -p " + DUMPS_DIR
-                + " && kill -3 " + numericPid
-                + " && (jstack " + numericPid + " > " + dumpFile + " 2>&1"
-                + "  && echo 'Thread dump saved to: " + dumpFile + "'"
-                + "  || echo 'jstack not available; SIGQUIT sent but dump written to systemd journal only')";
+        String captureCmd = "kill -3 " + numericPid
+                + " && sleep 2"
+                + " && ls -1t " + DUMPS_DIR + " 2>/dev/null | head -1 | while read f;"
+                + " do echo \"Thread dump saved to: " + DUMPS_DIR + "/$f\"; done"
+                + " || echo 'SIGQUIT sent to PID " + numericPid
+                + "; check " + DUMPS_DIR + " for the dump file'";
         String captureOutput = executor.execute(captureCmd);
         report.addResult(DiagnosticsReport.CMD_12, cmd12, captureOutput);
 
