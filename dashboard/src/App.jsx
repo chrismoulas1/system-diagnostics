@@ -7,6 +7,7 @@ import CountsChart from './components/CountsChart.jsx';
 import RunsTable from './components/RunsTable.jsx';
 import MultiDayChart from './components/MultiDayChart.jsx';
 import LeakAlert from './components/LeakAlert.jsx';
+import ExportButton from './components/ExportButton.jsx';
 import { detectMemoryLeak } from './utils/leakDetection.js';
 
 const SAMPLE_DATA = [
@@ -47,17 +48,17 @@ const SAMPLE_DATA = [
 
 export default function App() {
   const [reports, setReports] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [loading, setLoading]  = useState(false);
+  const [error, setError]      = useState(null);
   const [activeTab, setActiveTab] = useState(0);
 
   const handleUpload = async (files) => {
     setLoading(true);
     setError(null);
     try {
-      const formData = new FormData();
-      files.forEach(f => formData.append('pdfs', f));
-      const resp = await fetch('/api/parse', { method: 'POST', body: formData });
+      const fd = new FormData();
+      files.forEach(f => fd.append('pdfs', f));
+      const resp = await fetch('/api/parse', { method: 'POST', body: fd });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: 'Server error' }));
         throw new Error(err.error || `HTTP ${resp.status}`);
@@ -73,62 +74,58 @@ export default function App() {
     }
   };
 
-  const handleSample = () => {
-    setReports(SAMPLE_DATA);
-    setActiveTab(0);
-    setError(null);
-  };
+  const handleSample = () => { setReports(SAMPLE_DATA); setActiveTab(0); setError(null); };
+  const handleReset  = () => { setReports(null); setError(null); setActiveTab(0); };
 
-  const handleReset = () => {
-    setReports(null);
-    setError(null);
-    setActiveTab(0);
-  };
+  const isMultiDay   = reports && reports.length > 1;
+  const allRuns      = reports ? reports.flatMap(r => r.runs) : [];
+  const tabOptions   = reports ? [
+    ...(isMultiDay ? [{ label: '📅 Overview' }] : []),
+    ...reports.map(r => ({ label: r.date || r.filename })),
+  ] : [];
 
-  const isMultiDay = reports && reports.length > 1;
-  const allRuns = reports ? reports.flatMap(r => r.runs) : [];
-
-  const tabOptions = reports
-    ? [
-        ...(isMultiDay ? [{ label: '📅 Overview' }] : []),
-        ...reports.map(r => ({ label: r.date || r.filename })),
-      ]
-    : [];
-
-  const activeReport = isMultiDay
-    ? activeTab === 0 ? null : reports[activeTab - 1]
-    : reports?.[0];
-
+  const activeReport  = isMultiDay ? (activeTab === 0 ? null : reports[activeTab - 1]) : reports?.[0];
   const displayedRuns = activeReport ? activeReport.runs : allRuns;
+  const leakResult    = reports ? detectMemoryLeak(displayedRuns) : null;
+  const allRunsLeak   = reports ? detectMemoryLeak(allRuns) : null;
+  const perReportLeak = reports ? reports.map(r => detectMemoryLeak(r.runs)) : [];
 
-  // Run leak detection on whatever is currently displayed
-  const leakResult = reports ? detectMemoryLeak(displayedRuns) : null;
-
-  // For the per-day tabs, also compute per-report leak badges
-  const perReportLeak = reports
-    ? reports.map(r => detectMemoryLeak(r.runs))
-    : [];
+  // Charts helper — wraps each chart in a capturable <div>
+  const Charts = ({ runs, leak }) => (
+    <div className="chart-grid">
+      <div id="pdf-chart-memory">
+        <MemoryChart runs={runs} leakResult={leak} />
+      </div>
+      <div id="pdf-chart-counts">
+        <CountsChart runs={runs} />
+      </div>
+    </div>
+  );
 
   return (
     <div className="app">
-      <Header hasData={!!reports} onReset={handleReset} />
+      <Header
+        hasData={!!reports}
+        onReset={handleReset}
+        exportSlot={reports && (
+          <ExportButton
+            reports={reports}
+            allRuns={displayedRuns}
+            leakResult={leakResult}
+            perReportLeak={perReportLeak}
+          />
+        )}
+      />
 
       {!reports ? (
-        <UploadZone
-          onUpload={handleUpload}
-          onSample={handleSample}
-          loading={loading}
-          error={error}
-        />
+        <UploadZone onUpload={handleUpload} onSample={handleSample} loading={loading} error={error} />
       ) : (
         <main className="main">
           {loading && (
             <div className="loading-overlay">
-              <div className="spinner" />
-              <p>Analysing PDF reports…</p>
+              <div className="spinner" /><p>Analysing PDF reports…</p>
             </div>
           )}
-
           {error && <div className="error-banner">⚠️ {error}</div>}
 
           <div className="dashboard-toolbar">
@@ -157,7 +154,7 @@ export default function App() {
           {isMultiDay && (
             <div className="tabs">
               {tabOptions.map((t, i) => {
-                const dayIdx = isMultiDay ? i - 1 : i;
+                const dayIdx = i - 1;
                 const dayLeak = dayIdx >= 0 ? perReportLeak[dayIdx] : null;
                 return (
                   <button
@@ -168,13 +165,9 @@ export default function App() {
                     {t.label}
                     {dayLeak?.isLeaking && (
                       <span style={{
-                        marginLeft: '0.4rem',
-                        background: activeTab === i ? 'rgba(255,255,255,0.3)' : '#ef4444',
-                        color: 'white',
-                        borderRadius: 99,
-                        padding: '0.05rem 0.35rem',
-                        fontSize: '0.65rem',
-                        fontWeight: 700,
+                        marginLeft: '0.4rem', background: activeTab === i ? 'rgba(255,255,255,0.3)' : '#ef4444',
+                        color: 'white', borderRadius: 99, padding: '0.05rem 0.35rem',
+                        fontSize: '0.65rem', fontWeight: 700,
                       }}>⚠</span>
                     )}
                   </button>
@@ -184,25 +177,17 @@ export default function App() {
           )}
 
           <StatsCards reports={activeReport ? [activeReport] : reports} />
-
-          {/* Leak alert — shown whenever the current view has a detected leak */}
           <LeakAlert result={leakResult} />
 
           {isMultiDay && activeTab === 0 ? (
             <>
               <MultiDayChart reports={reports} leakResults={perReportLeak} />
-              <div className="chart-grid">
-                <MemoryChart runs={allRuns} leakResult={detectMemoryLeak(allRuns)} />
-                <CountsChart runs={allRuns} />
-              </div>
-              <RunsTable runs={allRuns} showDate={true} leakResult={detectMemoryLeak(allRuns)} />
+              <Charts runs={allRuns} leak={allRunsLeak} />
+              <RunsTable runs={allRuns} showDate={true} leakResult={allRunsLeak} />
             </>
           ) : (
             <>
-              <div className="chart-grid">
-                <MemoryChart runs={displayedRuns} leakResult={leakResult} />
-                <CountsChart runs={displayedRuns} />
-              </div>
+              <Charts runs={displayedRuns} leak={leakResult} />
               <RunsTable runs={displayedRuns} showDate={isMultiDay} leakResult={leakResult} />
             </>
           )}

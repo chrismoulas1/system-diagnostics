@@ -1,4 +1,4 @@
-export default function Header({ hasData, onReset }) {
+export default function Header({ hasData, onReset, exportSlot }) {
   return (
     <header className="header">
       <div className="header-brand">
@@ -9,6 +9,7 @@ export default function Header({ hasData, onReset }) {
         </div>
       </div>
       <div className="header-actions">
+        {exportSlot}
         {hasData && (
           <button className="btn btn-outline" onClick={onReset}>
             ＋ Upload New PDFs
