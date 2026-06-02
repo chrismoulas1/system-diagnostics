@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Header from './components/Header.jsx';
 import UploadZone from './components/UploadZone.jsx';
+import ServerFetch from './components/ServerFetch.jsx';
+import AutoRefreshBar from './components/AutoRefreshBar.jsx';
 import StatsCards from './components/StatsCards.jsx';
 import MemoryChart from './components/MemoryChart.jsx';
 import CountsChart from './components/CountsChart.jsx';
@@ -46,11 +48,110 @@ const SAMPLE_DATA = [
   },
 ];
 
+const DEFAULT_INTERVAL = 3600;
+
 export default function App() {
-  const [reports, setReports] = useState(null);
-  const [loading, setLoading]  = useState(false);
-  const [error, setError]      = useState(null);
+  const [reports, setReports]     = useState(null);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [sourceMode, setSourceMode] = useState('upload');
+
+  const [serverConfig, setServerConfig]   = useState(null);
+  const [lastFetched, setLastFetched]     = useState(null);
+  const [paused, setPaused]               = useState(false);
+  const [refreshing, setRefreshing]       = useState(false);
+  const [interval, setIntervalSecs]       = useState(DEFAULT_INTERVAL);
+  const [secondsToNext, setSecondsToNext] = useState(DEFAULT_INTERVAL);
+
+  const countdownRef = useRef(null);
+  const autoFireRef  = useRef(null);
+
+  const doRemoteFetch = useCallback(async (config) => {
+    if (!config) return;
+    setRefreshing(true);
+    try {
+      const resp = await fetch('/api/remote/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      const valid = data.filter(r => r.runs && r.runs.length > 0);
+      if (valid.length) {
+        valid.sort((a, b) => (!a.date ? 1 : !b.date ? -1 : a.date.localeCompare(b.date)));
+        setReports(valid);
+        setLastFetched(new Date());
+      }
+    } catch (e) {
+      console.error('Auto-refresh error:', e.message);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!serverConfig || paused) {
+      clearInterval(countdownRef.current);
+      clearTimeout(autoFireRef.current);
+      if (!paused) setSecondsToNext(interval);
+      return;
+    }
+
+    setSecondsToNext(interval);
+
+    countdownRef.current = setInterval(() => {
+      setSecondsToNext(s => {
+        if (s <= 1) return interval;
+        return s - 1;
+      });
+    }, 1000);
+
+    autoFireRef.current = setTimeout(function fire() {
+      doRemoteFetch(serverConfig);
+      autoFireRef.current = setTimeout(fire, interval * 1000);
+    }, interval * 1000);
+
+    return () => {
+      clearInterval(countdownRef.current);
+      clearTimeout(autoFireRef.current);
+    };
+  }, [serverConfig, paused, interval, doRemoteFetch]);
+
+  const handleIntervalChange = (secs) => {
+    setIntervalSecs(secs);
+    setSecondsToNext(secs);
+    clearInterval(countdownRef.current);
+    clearTimeout(autoFireRef.current);
+    if (!serverConfig || paused) return;
+
+    countdownRef.current = setInterval(() => {
+      setSecondsToNext(s => (s <= 1 ? secs : s - 1));
+    }, 1000);
+
+    autoFireRef.current = setTimeout(function fire() {
+      doRemoteFetch(serverConfig);
+      autoFireRef.current = setTimeout(fire, secs * 1000);
+    }, secs * 1000);
+  };
+
+  const handleRefreshNow = () => {
+    clearTimeout(autoFireRef.current);
+    setSecondsToNext(interval);
+    doRemoteFetch(serverConfig).then(() => {
+      if (!paused) {
+        autoFireRef.current = setTimeout(function fire() {
+          doRemoteFetch(serverConfig);
+          autoFireRef.current = setTimeout(fire, interval * 1000);
+        }, interval * 1000);
+      }
+    });
+  };
+
+  const handleTogglePause = () => {
+    setPaused(p => !p);
+  };
 
   const handleUpload = async (files) => {
     setLoading(true);
@@ -67,6 +168,7 @@ export default function App() {
       if (!data.length) throw new Error('No reports could be parsed from the uploaded files');
       setReports(data);
       setActiveTab(0);
+      setServerConfig(null);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -74,8 +176,32 @@ export default function App() {
     }
   };
 
-  const handleSample = () => { setReports(SAMPLE_DATA); setActiveTab(0); setError(null); };
-  const handleReset  = () => { setReports(null); setError(null); setActiveTab(0); };
+  const handleRemoteFetch = (data, config) => {
+    setReports(data);
+    setActiveTab(0);
+    setError(null);
+    setServerConfig(config);
+    setLastFetched(new Date());
+    setPaused(false);
+    setSecondsToNext(interval);
+  };
+
+  const handleSample = () => {
+    setReports(SAMPLE_DATA);
+    setActiveTab(0);
+    setError(null);
+    setServerConfig(null);
+  };
+
+  const handleReset = () => {
+    setReports(null);
+    setError(null);
+    setActiveTab(0);
+    setServerConfig(null);
+    setLastFetched(null);
+    clearInterval(countdownRef.current);
+    clearTimeout(autoFireRef.current);
+  };
 
   const isMultiDay   = reports && reports.length > 1;
   const allRuns      = reports ? reports.flatMap(r => r.runs) : [];
@@ -90,7 +216,6 @@ export default function App() {
   const allRunsLeak   = reports ? detectMemoryLeak(allRuns) : null;
   const perReportLeak = reports ? reports.map(r => detectMemoryLeak(r.runs)) : [];
 
-  // Charts helper — wraps each chart in a capturable <div>
   const Charts = ({ runs, leak }) => (
     <div className="chart-grid">
       <div id="pdf-chart-memory">
@@ -118,15 +243,57 @@ export default function App() {
       />
 
       {!reports ? (
-        <UploadZone onUpload={handleUpload} onSample={handleSample} loading={loading} error={error} />
+        <div className="source-page">
+          <div className="source-tabs">
+            <button
+              className={`source-tab ${sourceMode === 'upload' ? 'active' : ''}`}
+              onClick={() => setSourceMode('upload')}
+            >
+              📂 Upload PDFs
+            </button>
+            <button
+              className={`source-tab ${sourceMode === 'server' ? 'active' : ''}`}
+              onClick={() => setSourceMode('server')}
+            >
+              🖥️ Fetch from Server
+            </button>
+          </div>
+
+          {sourceMode === 'upload' ? (
+            <UploadZone onUpload={handleUpload} onSample={handleSample} loading={loading} error={error} />
+          ) : (
+            <div className="server-fetch-page">
+              <ServerFetch onFetch={handleRemoteFetch} loading={loading} error={error} />
+              <div className="sftp-demo-divider">or</div>
+              <button className="sample-btn sftp-sample-btn" onClick={handleSample} disabled={loading}>
+                🎯 Load sample data (demo)
+              </button>
+            </div>
+          )}
+        </div>
       ) : (
         <main className="main">
-          {loading && (
+          {(loading || refreshing) && (
             <div className="loading-overlay">
-              <div className="spinner" /><p>Analysing PDF reports…</p>
+              <div className="spinner" />
+              <p>{refreshing ? 'Refreshing reports from server…' : 'Analysing PDF reports…'}</p>
             </div>
           )}
           {error && <div className="error-banner">⚠️ {error}</div>}
+
+          {serverConfig && (
+            <AutoRefreshBar
+              host={serverConfig.host}
+              lastFetched={lastFetched}
+              secondsToNext={secondsToNext}
+              paused={paused}
+              refreshing={refreshing}
+              interval={interval}
+              onIntervalChange={handleIntervalChange}
+              onTogglePause={handleTogglePause}
+              onRefreshNow={handleRefreshNow}
+            />
+          )}
 
           <div className="dashboard-toolbar">
             <div>
