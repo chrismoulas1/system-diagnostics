@@ -96,7 +96,7 @@ export default function ServerFetch({ onFetch, loading, error }) {
         setFetchError('Reports were downloaded but no diagnostic data could be parsed from them.');
         return;
       }
-      onFetch(valid);
+      onFetch(valid, { host, port, username, password, files: Array.from(selectedFiles) });
     } catch (e) {
       setFetchError(e.message);
     } finally {
