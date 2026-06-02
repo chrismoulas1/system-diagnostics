@@ -1,7 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const DEFAULT_PORT = '22';
 const DEFAULT_PATH = '/var/siemens/common/log';
+const STORAGE_KEY  = 'sftp_server_config';
+
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function savePref(host, port, username) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ host, port, username }));
+  } catch {}
+}
+
+function clearPref() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+}
 
 function formatDate(raw) {
   if (!raw || raw.length !== 8) return raw;
@@ -14,24 +35,49 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-export default function ServerFetch({ onFetch, loading, error }) {
-  const [host, setHost]         = useState('');
-  const [port, setPort]         = useState(DEFAULT_PORT);
-  const [username, setUsername] = useState('');
+export default function ServerFetch({ onFetch, loading }) {
+  const saved = loadSaved();
+
+  const [host, setHost]         = useState(saved?.host     || '');
+  const [port, setPort]         = useState(saved?.port     || DEFAULT_PORT);
+  const [username, setUsername] = useState(saved?.username || '');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
 
-  const [testStatus, setTestStatus] = useState(null);
-  const [testing, setTesting]       = useState(false);
+  const [hasSaved, setHasSaved]           = useState(!!saved);
+  const [justSaved, setJustSaved]         = useState(false);
+
+  const [testStatus, setTestStatus]       = useState(null);
+  const [testing, setTesting]             = useState(false);
   const [availableFiles, setAvailableFiles] = useState(null);
   const [selectedFiles, setSelectedFiles]   = useState(new Set());
 
-  const [fetching, setFetching] = useState(false);
+  const [fetching, setFetching]   = useState(false);
   const [fetchError, setFetchError] = useState(null);
 
   const credentials = () => ({ host, port, username, password });
 
   const valid = host.trim() && username.trim() && password.trim();
+
+  const persistConfig = (h, p, u) => {
+    savePref(h, p, u);
+    setHasSaved(true);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2000);
+  };
+
+  const handleClearSaved = () => {
+    clearPref();
+    setHasSaved(false);
+    setJustSaved(false);
+    setHost('');
+    setPort(DEFAULT_PORT);
+    setUsername('');
+    setPassword('');
+    setTestStatus(null);
+    setAvailableFiles(null);
+    setSelectedFiles(new Set());
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -50,9 +96,13 @@ export default function ServerFetch({ onFetch, loading, error }) {
         setTestStatus({ ok: false, message: data.error || `HTTP ${resp.status}` });
         return;
       }
-      setTestStatus({ ok: true, message: `Connected — found ${data.files.length} report${data.files.length !== 1 ? 's' : ''} in ${data.logDir}` });
+      setTestStatus({
+        ok: true,
+        message: `Connected — found ${data.files.length} report${data.files.length !== 1 ? 's' : ''} in ${data.logDir}`,
+      });
       setAvailableFiles(data.files);
       setSelectedFiles(new Set(data.files.map(f => f.name)));
+      persistConfig(host, port, username);
     } catch (e) {
       setTestStatus({ ok: false, message: e.message });
     } finally {
@@ -96,6 +146,7 @@ export default function ServerFetch({ onFetch, loading, error }) {
         setFetchError('Reports were downloaded but no diagnostic data could be parsed from them.');
         return;
       }
+      persistConfig(host, port, username);
       onFetch(valid, { host, port, username, password, files: Array.from(selectedFiles) });
     } catch (e) {
       setFetchError(e.message);
@@ -113,6 +164,19 @@ export default function ServerFetch({ onFetch, loading, error }) {
           <p>Connect via SSH to pull all daily PDF reports automatically from the server.</p>
         </div>
       </div>
+
+      {hasSaved && (
+        <div className="sftp-remembered-bar">
+          <span>
+            {justSaved
+              ? '✅ Connection saved (password not stored)'
+              : `🔒 Remembered: ${host} · ${username}`}
+          </span>
+          <button className="sftp-clear-btn" onClick={handleClearSaved} title="Clear saved connection">
+            ✕ Clear
+          </button>
+        </div>
+      )}
 
       <div className="server-fetch-form">
         <div className="sftp-row">
@@ -150,7 +214,10 @@ export default function ServerFetch({ onFetch, loading, error }) {
             />
           </div>
           <div className="sftp-field sftp-field-half">
-            <label>Password</label>
+            <label>
+              Password
+              <span className="sftp-pass-hint"> — not saved</span>
+            </label>
             <div className="sftp-password-wrap">
               <input
                 type={showPass ? 'text' : 'password'}
@@ -231,7 +298,7 @@ export default function ServerFetch({ onFetch, loading, error }) {
             ))}
           </div>
 
-          {(fetchError) && (
+          {fetchError && (
             <div className="sftp-status sftp-status-err" style={{ marginTop: '0.75rem' }}>
               ❌ {fetchError}
             </div>
