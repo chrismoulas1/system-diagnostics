@@ -622,10 +622,283 @@ tbody td {
 }
 .file-badge .remove:hover { opacity: 1; }
 
+/* ── Source-mode tabs (Upload / Fetch from Server) ───── */
+.source-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 2rem;
+}
+
+.source-tabs {
+  display: flex;
+  gap: 0;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.3rem;
+  margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.source-tab {
+  padding: 0.55rem 1.4rem;
+  border-radius: calc(var(--radius) - 4px);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.source-tab:hover { background: var(--color-bg); color: var(--color-text); }
+.source-tab.active {
+  background: var(--color-accent);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Server-fetch page wrapper ───────────────────────── */
+.server-fetch-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 640px;
+  padding: 0 1rem 3rem;
+}
+
+/* ── Server-fetch card ───────────────────────────────── */
+.server-fetch-card {
+  width: 100%;
+  background: var(--color-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.server-fetch-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  padding: 1.4rem 1.6rem 1.1rem;
+  border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(135deg, #f0f9ff, #e6f7f4);
+}
+.server-fetch-icon {
+  font-size: 1.9rem;
+  line-height: 1;
+  margin-top: 0.1rem;
+}
+.server-fetch-header h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+  color: var(--color-text);
+}
+.server-fetch-header p {
+  font-size: 0.83rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+/* ── SFTP form ───────────────────────────────────────── */
+.server-fetch-form {
+  padding: 1.4rem 1.6rem 1.2rem;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.sftp-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.sftp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.sftp-field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sftp-field input {
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  color: var(--color-text);
+  background: var(--color-bg);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.sftp-field input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(0,168,132,0.12);
+}
+
+.sftp-field-grow  { flex: 1 1 auto; }
+.sftp-field-port  { flex: 0 0 90px; }
+.sftp-field-half  { flex: 1 1 0; }
+
+.sftp-password-wrap {
+  position: relative;
+  display: flex;
+}
+.sftp-password-wrap input { flex: 1; padding-right: 2.4rem; }
+.sftp-toggle-pass {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.7;
+}
+.sftp-toggle-pass:hover { opacity: 1; }
+
+.sftp-path-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.7rem;
+}
+.sftp-path-hint code {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--color-text);
+}
+
+.sftp-test-btn { width: 100%; justify-content: center; }
+
+.sftp-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.84rem;
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.8rem;
+  line-height: 1.45;
+}
+.sftp-status-ok  { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.sftp-status-err { background: #fef2f2; color: #7f1d1d; border: 1px solid #fecaca; }
+
+/* ── SFTP file list ──────────────────────────────────── */
+.sftp-empty {
+  padding: 1.2rem 1.6rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  text-align: center;
+}
+.sftp-empty code { font-family: var(--font-mono); font-size: 0.78rem; }
+
+.sftp-file-list { padding: 1.2rem 1.6rem 1.4rem; }
+
+.sftp-file-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+}
+.sftp-select-all {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.87rem;
+}
+.sftp-select-all input[type=checkbox] { cursor: pointer; width: 15px; height: 15px; accent-color: var(--color-accent); }
+.sftp-count {
+  font-weight: 400;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  margin-left: 0.25rem;
+}
+.sftp-selected-hint {
+  font-size: 0.78rem;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.sftp-file-scroll {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  margin-bottom: 0.85rem;
+}
+
+.sftp-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 0.83rem;
+}
+.sftp-file-row:last-child { border-bottom: none; }
+.sftp-file-row:hover { background: var(--color-accent-light); }
+.sftp-file-row.checked { background: #f0fdf9; }
+.sftp-file-row input[type=checkbox] { cursor: pointer; accent-color: var(--color-accent); flex-shrink: 0; }
+.sftp-file-icon { flex-shrink: 0; }
+.sftp-file-name { font-family: var(--font-mono); font-size: 0.78rem; flex: 1; color: var(--color-text); }
+.sftp-file-date { color: var(--color-text-muted); font-size: 0.78rem; }
+.sftp-file-size { color: var(--color-text-muted); font-size: 0.75rem; min-width: 55px; text-align: right; }
+
+.sftp-fetch-btn { width: 100%; justify-content: center; margin-top: 0.1rem; padding: 0.65rem; }
+
+/* ── Demo divider below server fetch card ────────────── */
+.sftp-demo-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  margin: 1.2rem 0 0.9rem;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+.sftp-demo-divider::before,
+.sftp-demo-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.sftp-sample-btn {
+  width: 100%;
+  text-align: center;
+  justify-content: center;
+}
+
 /* ── Responsive ──────────────────────────────────────── */
 @media (max-width: 640px) {
   .main { padding: 1rem; }
   .header { padding: 0 1rem; }
   .upload-card { padding: 2rem 1.5rem; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
+  .sftp-row { flex-direction: column; }
+  .sftp-field-port { flex: 0 0 auto; }
+  .source-tabs { width: calc(100% - 2rem); }
 }

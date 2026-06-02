@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Header from './components/Header.jsx';
 import UploadZone from './components/UploadZone.jsx';
+import ServerFetch from './components/ServerFetch.jsx';
 import StatsCards from './components/StatsCards.jsx';
 import MemoryChart from './components/MemoryChart.jsx';
 import CountsChart from './components/CountsChart.jsx';
@@ -51,6 +52,7 @@ export default function App() {
   const [loading, setLoading]  = useState(false);
   const [error, setError]      = useState(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [sourceMode, setSourceMode] = useState('upload');
 
   const handleUpload = async (files) => {
     setLoading(true);
@@ -72,6 +74,12 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRemoteFetch = (data) => {
+    setReports(data);
+    setActiveTab(0);
+    setError(null);
   };
 
   const handleSample = () => { setReports(SAMPLE_DATA); setActiveTab(0); setError(null); };
@@ -118,7 +126,34 @@ export default function App() {
       />
 
       {!reports ? (
-        <UploadZone onUpload={handleUpload} onSample={handleSample} loading={loading} error={error} />
+        <div className="source-page">
+          <div className="source-tabs">
+            <button
+              className={`source-tab ${sourceMode === 'upload' ? 'active' : ''}`}
+              onClick={() => setSourceMode('upload')}
+            >
+              📂 Upload PDFs
+            </button>
+            <button
+              className={`source-tab ${sourceMode === 'server' ? 'active' : ''}`}
+              onClick={() => setSourceMode('server')}
+            >
+              🖥️ Fetch from Server
+            </button>
+          </div>
+
+          {sourceMode === 'upload' ? (
+            <UploadZone onUpload={handleUpload} onSample={handleSample} loading={loading} error={error} />
+          ) : (
+            <div className="server-fetch-page">
+              <ServerFetch onFetch={handleRemoteFetch} loading={loading} error={error} />
+              <div className="sftp-demo-divider">or</div>
+              <button className="sample-btn sftp-sample-btn" onClick={handleSample} disabled={loading}>
+                🎯 Load sample data (demo)
+              </button>
+            </div>
+          )}
+        </div>
       ) : (
         <main className="main">
           {loading && (
