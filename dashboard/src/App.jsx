@@ -11,6 +11,7 @@ import MultiDayChart from './components/MultiDayChart.jsx';
 import LeakAlert from './components/LeakAlert.jsx';
 import ExportButton from './components/ExportButton.jsx';
 import { detectMemoryLeak } from './utils/leakDetection.js';
+import DiagnosticSummary from './components/DiagnosticSummary.jsx';
 
 const SAMPLE_DATA = [
   {
@@ -345,6 +346,13 @@ export default function App() {
 
           <StatsCards reports={activeReport ? [activeReport] : reports} />
           <LeakAlert result={leakResult} />
+          <DiagnosticSummary
+            runs={displayedRuns}
+            reports={reports}
+            leakResult={leakResult}
+            isMultiDay={isMultiDay}
+            activeTab={activeTab}
+          />
 
           {isMultiDay && activeTab === 0 ? (
             <>
