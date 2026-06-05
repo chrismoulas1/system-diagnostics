@@ -107,6 +107,19 @@ function extractMetrics(outputs) {
   if (vmSizeMatch) metrics.vmSizeKb = parseInt(vmSizeMatch[1]);
   if (vmRssMatch)  metrics.vmRssKb  = parseInt(vmRssMatch[1]);
 
+  // ── COMMAND_2: ps -aux | grep server  → %MEM = physical memory % ────────────
+  // ps -aux columns: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
+  // %MEM is the process VmRSS as a percentage of total system physical memory
+  const cmd2 = outputs['COMMAND_2'] || '';
+  const cmd2Lines = cmd2.split('\n').filter(l => l.trim() && !/^\s*USER/i.test(l));
+  if (cmd2Lines.length > 0) {
+    const parts = cmd2Lines[0].trim().split(/\s+/);
+    if (parts.length >= 4) {
+      const memPct = parseFloat(parts[3]);
+      if (!isNaN(memPct)) metrics.physMemPct = memPct;
+    }
+  }
+
   // ── COMMAND_3: ps -o pid,vsz,rss,cmd  (secondary – cross-check RSS) ────────
   const cmd3 = outputs['COMMAND_3'] || '';
   const cmd3Lines = cmd3.split('\n').filter(l => l.trim() && !/^\s*PID/i.test(l));

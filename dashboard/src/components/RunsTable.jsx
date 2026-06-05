@@ -23,6 +23,12 @@ function fmtMb(mb) {
   return mb.toFixed(1) + ' MB';
 }
 
+function fmtPct(pct) {
+  if (pct === undefined || pct === null || isNaN(pct))
+    return <span className="no-data">—</span>;
+  return pct.toFixed(1) + ' %';
+}
+
 function fmtNum(n) {
   if (n === undefined || n === null || isNaN(n))
     return <span className="no-data">—</span>;
@@ -74,6 +80,7 @@ export default function RunsTable({ runs, showDate, leakResult }) {
               <th>Time</th>
               <th>Server PID</th>
               <th>VmRSS</th>
+              <th>Phys Mem %</th>
               <th>VmSize</th>
               <th>Anon Memory</th>
               <th>JSSE Threads</th>
@@ -87,6 +94,7 @@ export default function RunsTable({ runs, showDate, leakResult }) {
               const [datePart, timePart] = ts.split(' ');
               const prevRun = i > 0 ? runs[i - 1] : null;
               const vmRssKb = run.metrics?.vmRssKb;
+              const physMemPct = run.metrics?.physMemPct;
               const vmSizeKb = run.metrics?.vmSizeKb;
               const anonMb   = run.metrics?.anonMemoryMb;
               const threads  = run.metrics?.jsseNioThreads;
@@ -121,6 +129,7 @@ export default function RunsTable({ runs, showDate, leakResult }) {
                   </td>
                   <td><code style={{ fontSize: '0.8rem' }}>{run.serverPid || '—'}</code></td>
                   <td>{fmtKb(vmRssKb, prevRun?.metrics?.vmRssKb, inStreak)}</td>
+                  <td>{fmtPct(physMemPct)}</td>
                   <td>{fmtKb(vmSizeKb, prevRun?.metrics?.vmSizeKb, false)}</td>
                   <td><span className="badge badge-orange">{fmtMb(anonMb)}</span></td>
                   <td>{fmtNum(threads)}</td>
