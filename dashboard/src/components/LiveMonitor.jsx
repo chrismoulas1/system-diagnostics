@@ -225,7 +225,7 @@ export default function LiveMonitor() {
       if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
 
       setFetchError(null);
-      setLastUpdated(new Date());
+      setLastUpdated(data.timestamp); // server-local time string, used by shortTime()
       setLatest(data);
 
       const point = {
@@ -374,7 +374,7 @@ export default function LiveMonitor() {
           <span className="arb-sep">·</span>
           <span className="arb-ago">
             {lastUpdated
-              ? `Updated ${shortTime(lastUpdated.toISOString())}`
+              ? `Updated ${shortTime(lastUpdated)}`
               : 'Connecting…'}
           </span>
           {latest?.pid && (

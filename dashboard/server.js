@@ -283,9 +283,11 @@ function parseLiveOutput(raw) {
   const pidMatch = raw.match(/<<<PID>>>(\d*)/);
   metrics.pid = pidMatch ? pidMatch[1] : null;
 
-  // /proc/stat CPU line
-  const cpuStatMatch = raw.match(/<<<CPU_STAT>>>(cpu\s+[\d ]+)/);
-  metrics.cpuStat = cpuStatMatch ? parseCpuStat(cpuStatMatch[1]) : null;
+  // /proc/stat CPU lines — two samples taken 1 s apart for an inline delta
+  const cpuStat1Match = raw.match(/<<<CPU_STAT1>>>(cpu\s+[\d ]+)/);
+  const cpuStat2Match = raw.match(/<<<CPU_STAT2>>>(cpu\s+[\d ]+)/);
+  metrics.cpuStat1 = cpuStat1Match ? parseCpuStat(cpuStat1Match[1]) : null;
+  metrics.cpuStat2 = cpuStat2Match ? parseCpuStat(cpuStat2Match[1]) : null;
 
   // /proc/PID/status block
   const statusMatch = raw.match(/<<<STATUS_START>>>([\s\S]*?)<<<STATUS_END>>>/);
@@ -304,12 +306,12 @@ function parseLiveOutput(raw) {
     if (!isNaN(val)) metrics.anonMemoryMb = val;
   }
 
-  // Thread count
-  const thrMatch = raw.match(/<<<THREADS>>>(\d+)/);
+  // Thread count — wc -l can pad with leading whitespace, so allow \s*
+  const thrMatch = raw.match(/<<<THREADS>>>\s*(\d+)/);
   if (thrMatch) metrics.threads = parseInt(thrMatch[1]);
 
-  // Network connections
-  const connMatch = raw.match(/<<<CONNECTIONS>>>(\d+)/);
+  // Network connections — same wc -l whitespace issue
+  const connMatch = raw.match(/<<<CONNECTIONS>>>\s*(\d+)/);
   if (connMatch) metrics.connections = parseInt(connMatch[1]);
 
   // /proc/meminfo
@@ -344,18 +346,25 @@ const LIVE_SHELL_CMD = [
   '[ -z "$PID" ] && PID=$(pgrep -f java 2>/dev/null | head -1)',
   '[ -z "$PID" ] && PID=$(ps -eo pid,cmd --no-headers 2>/dev/null | grep -iE "java|server" | grep -v grep | head -1 | awk \'{print $1}\')',
   'printf "<<<PID>>>%s\\n" "$PID"',
-  // CPU stat
-  'printf "<<<CPU_STAT>>>%s\\n" "$(awk \'NR==1\' /proc/stat)"',
+  // First CPU stat sample — taken before any heavy I/O
+  'printf "<<<CPU_STAT1>>>%s\\n" "$(awk \'NR==1\' /proc/stat)"',
   // Process memory
   'if [ -n "$PID" ] && [ -d "/proc/$PID" ]; then',
   '  echo "<<<STATUS_START>>>"',
   '  cat /proc/$PID/status 2>/dev/null',
   '  echo "<<<STATUS_END>>>"',
   '  echo "<<<ANON_START>>>"',
-  '  awk \'BEGIN{s=0} /^AnonHugePages:/{s+=$2} /^Private_Dirty:/{s+=$2} END{printf "%.2f\\n", s/1024}\' /proc/$PID/smaps 2>/dev/null || echo "0"',
+  // Use smaps_rollup (kernel 4.14+) when available — it is instantaneous even
+  // for large Java heaps, unlike /proc/$PID/smaps which can be hundreds of MB.
+  '  { [ -f "/proc/$PID/smaps_rollup" ] && awk \'/^AnonHugePages:/{s+=$2} /^Private_Dirty:/{s+=$2} END{printf "%.2f\\n", s/1024}\' /proc/$PID/smaps_rollup; } 2>/dev/null || awk \'BEGIN{s=0} /^AnonHugePages:/{s+=$2} /^Private_Dirty:/{s+=$2} END{printf "%.2f\\n", s/1024}\' /proc/$PID/smaps 2>/dev/null || echo "0"',
   '  echo "<<<ANON_END>>>"',
   '  printf "<<<THREADS>>>%s\\n" "$(ls /proc/$PID/task 2>/dev/null | wc -l)"',
   'fi',
+  // Wait 1 s then take second CPU sample — the inline delta lets the first
+  // API call already return meaningful CPU percentages without needing a
+  // cached reading from a previous request.
+  'sleep 1',
+  'printf "<<<CPU_STAT2>>>%s\\n" "$(awk \'NR==1\' /proc/stat)"',
   // Network connections
   'printf "<<<CONNECTIONS>>>%s\\n" "$(ss -tn state established 2>/dev/null | tail -n +2 | wc -l || netstat -tn 2>/dev/null | grep -c ESTABLISHED || echo 0)"',
   // System memory
@@ -382,15 +391,35 @@ app.post('/api/live/metrics', async (req, res) => {
     const raw = await runSshCommand(cfg, LIVE_SHELL_CMD);
     const parsed = parseLiveOutput(raw);
 
-    // CPU delta calculation
+    // CPU delta calculation.
+    // On subsequent calls we use the ~30-second inter-call delta stored in the
+    // cache — this gives a more accurate average over the polling interval.
+    // On the very first call (no cache) we fall back to the inline 1-second
+    // delta that the shell script always captures via CPU_STAT1 → sleep 1 → CPU_STAT2.
     const cacheKey = `${cfg.host}:${cfg.port}:${cfg.username}`;
     const prevCpu  = cpuStatCache.get(cacheKey) || null;
-    const currCpu  = parsed.cpuStat;
-    const cpuPct   = calcCpuPct(prevCpu, currCpu);
+    const currCpu  = parsed.cpuStat2 || parsed.cpuStat1;
+
+    let cpuPct;
+    if (prevCpu && currCpu) {
+      cpuPct = calcCpuPct(prevCpu, currCpu);                    // ~30 s inter-call delta
+    } else if (parsed.cpuStat1 && parsed.cpuStat2) {
+      cpuPct = calcCpuPct(parsed.cpuStat1, parsed.cpuStat2);   // 1 s inline delta (first call)
+    } else {
+      cpuPct = null;
+    }
+
     if (currCpu) cpuStatCache.set(cacheKey, currCpu);
 
+    // Build a local-time timestamp string in ISO-like format so that the
+    // frontend's shortTime() helper (which slices characters 11-19) extracts
+    // HH:MM:SS in the server's own timezone rather than UTC.
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const localTimestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.000`;
+
     res.json({
-      timestamp: new Date().toISOString(),
+      timestamp: localTimestamp,
       pid: parsed.pid || null,
       vmSizeKb: parsed.vmSizeKb ?? null,
       vmRssKb:  parsed.vmRssKb  ?? null,
@@ -402,7 +431,7 @@ app.post('/api/live/metrics', async (req, res) => {
       loadAvg1:    parsed.loadAvg1    ?? null,
       loadAvg5:    parsed.loadAvg5    ?? null,
       loadAvg15:   parsed.loadAvg15   ?? null,
-      cpu: cpuPct,   // null on first call (no prev sample yet)
+      cpu: cpuPct,
       topOutput: parsed.topOutput || '',
     });
   } catch (err) {
