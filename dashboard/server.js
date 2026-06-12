@@ -226,8 +226,8 @@ function runSshCommand(cfg, command) {
     let stderr = '';
     const timer = setTimeout(() => {
       conn.end();
-      reject(new Error('SSH command timed out after 15 seconds'));
-    }, 15000);
+      reject(new Error('SSH command timed out after 45 seconds'));
+    }, 45000);
 
     conn.on('ready', () => {
       conn.exec(command, { pty: false }, (err, stream) => {
@@ -341,32 +341,37 @@ function parseLiveOutput(raw) {
 }
 
 const LIVE_SHELL_CMD = [
-  // Find server process PID
-  'PID=$(cat /var/siemens/common/pid 2>/dev/null | tr -d "[:space:]" | head -c 10)',
+  // ── PID detection — same primary command as the diagnostics tool (SystemDiagnosticsService):
+  //   ps -aux | grep '[s]erver'  →  extract PID from column 2
+  'PID=$(ps -aux | grep \'[s]erver\' | awk \'NR==1{print $2}\')',
+  // Fallbacks: pid file, pgrep java, broad search
+  '[ -z "$PID" ] && PID=$(cat /var/siemens/common/pid 2>/dev/null | tr -d "[:space:]" | head -c 10)',
   '[ -z "$PID" ] && PID=$(pgrep -f java 2>/dev/null | head -1)',
   '[ -z "$PID" ] && PID=$(ps -eo pid,cmd --no-headers 2>/dev/null | grep -iE "java|server" | grep -v grep | head -1 | awk \'{print $1}\')',
   'printf "<<<PID>>>%s\\n" "$PID"',
   // First CPU stat sample — taken before any heavy I/O
   'printf "<<<CPU_STAT1>>>%s\\n" "$(awk \'NR==1\' /proc/stat)"',
-  // Process memory
+  // ── Process metrics — commands mirror the diagnostics tool (SystemDiagnosticsService)
   'if [ -n "$PID" ] && [ -d "/proc/$PID" ]; then',
+  // CMD 4 equivalent: VmRSS / VmSize from /proc/pid/status
   '  echo "<<<STATUS_START>>>"',
   '  cat /proc/$PID/status 2>/dev/null',
   '  echo "<<<STATUS_END>>>"',
+  // CMD 7 equivalent: anonymous memory — use smaps_rollup (kernel 4.14+, instantaneous)
+  // when available, otherwise fall back to the exact awk one-liner the diagnostics tool uses
   '  echo "<<<ANON_START>>>"',
-  // Use smaps_rollup (kernel 4.14+) when available — it is instantaneous even
-  // for large Java heaps, unlike /proc/$PID/smaps which can be hundreds of MB.
-  '  { [ -f "/proc/$PID/smaps_rollup" ] && awk \'/^AnonHugePages:/{s+=$2} /^Private_Dirty:/{s+=$2} END{printf "%.2f\\n", s/1024}\' /proc/$PID/smaps_rollup; } 2>/dev/null || awk \'BEGIN{s=0} /^AnonHugePages:/{s+=$2} /^Private_Dirty:/{s+=$2} END{printf "%.2f\\n", s/1024}\' /proc/$PID/smaps 2>/dev/null || echo "0"',
+  '  { [ -f "/proc/$PID/smaps_rollup" ] && grep -i anon /proc/$PID/smaps_rollup 2>/dev/null | awk \'{sum+=$2} END {printf "%.2f\\n", sum/1024}\'; } 2>/dev/null || grep -i anon /proc/$PID/smaps 2>/dev/null | awk \'{sum+=$2} END {printf "%.2f\\n", sum/1024}\' || echo "0"',
   '  echo "<<<ANON_END>>>"',
+  // Thread count via task directory
   '  printf "<<<THREADS>>>%s\\n" "$(ls /proc/$PID/task 2>/dev/null | wc -l)"',
+  // CMD 10 equivalent: connections for this PID — same command as diagnostics tool: ss -antp | grep <pid>
+  '  printf "<<<CONNECTIONS>>>%s\\n" "$(ss -antp 2>/dev/null | grep "$PID" | wc -l || echo 0)"',
   'fi',
   // Wait 1 s then take second CPU sample — the inline delta lets the first
   // API call already return meaningful CPU percentages without needing a
   // cached reading from a previous request.
   'sleep 1',
   'printf "<<<CPU_STAT2>>>%s\\n" "$(awk \'NR==1\' /proc/stat)"',
-  // Network connections
-  'printf "<<<CONNECTIONS>>>%s\\n" "$(ss -tn state established 2>/dev/null | tail -n +2 | wc -l || netstat -tn 2>/dev/null | grep -c ESTABLISHED || echo 0)"',
   // System memory
   'echo "<<<MEMINFO_START>>>"',
   'cat /proc/meminfo 2>/dev/null | head -8',
