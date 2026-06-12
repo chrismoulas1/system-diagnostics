@@ -1017,3 +1017,227 @@ tbody td {
   .sftp-field-port { flex: 0 0 auto; }
   .source-tabs { width: calc(100% - 2rem); }
 }
+
+/* ══════════════════════════════════════════════════════════
+   ── Live Monitor ─────────────────────────────────────────
+   ══════════════════════════════════════════════════════════ */
+
+/* Page wrapper (shown when monitor is not started) */
+.live-monitor-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 2rem;
+  padding-bottom: 3rem;
+}
+
+/* Connection card */
+.live-monitor-connect-card {
+  width: 100%;
+  max-width: 640px;
+  background: var(--color-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.live-monitor-connect-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  padding: 1.4rem 1.6rem 1.1rem;
+  border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(135deg, #fff0f0, #fff5f5);
+}
+
+.live-monitor-header-icon {
+  font-size: 1.9rem;
+  line-height: 1;
+  margin-top: 0.1rem;
+}
+
+.live-monitor-connect-header h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+  color: var(--color-text);
+}
+
+.live-monitor-connect-header p {
+  font-size: 0.83rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.live-monitor-form {
+  padding: 1.4rem 1.6rem 1.2rem;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.live-start-btn {
+  width: 100%;
+  justify-content: center;
+  padding: 0.65rem;
+  font-size: 0.95rem;
+}
+
+/* Info items at bottom of connect card */
+.live-monitor-info-panel {
+  padding: 1rem 1.6rem 1.2rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.live-info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.live-info-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+/* ── Live dashboard layout ───────────────────────────────── */
+.live-monitor-dashboard {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* ── Status bar (reuses auto-refresh-bar styles + extras) ── */
+.live-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.55rem 1.2rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  border: 1px solid;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+.live-status-bar.active {
+  background: #fff5f5;
+  border-color: #fca5a5;
+  color: #7f1d1d;
+}
+
+.live-status-bar.paused {
+  background: #fafafa;
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.live-monitor-badge {
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  animation: live-blink 1.8s ease-in-out infinite;
+}
+
+@keyframes live-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+.live-stop-btn {
+  color: var(--color-danger) !important;
+  border-color: var(--color-danger) !important;
+}
+.live-stop-btn:hover:not(:disabled) {
+  background: #fef2f2 !important;
+}
+
+/* ── Stat cards in live view ─────────────────────────────── */
+.live-stats-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.live-stat-card {
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+
+/* ── Live waiting spinner ────────────────────────────────── */
+.live-waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 3rem;
+  color: var(--color-text-muted);
+}
+
+/* ── Chart cards in live view ────────────────────────────── */
+.live-chart-card {
+  /* inherits .chart-card */
+}
+
+/* ── top output panel ────────────────────────────────────── */
+.live-top-panel {
+  background: #0f172a;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.live-top-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.4rem;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+.live-top-header h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin: 0;
+}
+
+.live-top-ts {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-family: var(--font-mono);
+}
+
+.live-top-output {
+  padding: 1rem 1.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #94a3b8;
+  white-space: pre;
+  overflow-x: auto;
+  background: transparent;
+  margin: 0;
+}
+
+/* Highlight header lines in top output */
+.live-top-output::first-line {
+  color: #e2e8f0;
+}
+
+/* ── Responsive for live monitor ─────────────────────────── */
+@media (max-width: 640px) {
+  .live-monitor-dashboard { padding: 1rem 1rem 2rem; }
+  .live-stats-grid { grid-template-columns: 1fr 1fr; }
+  .live-monitor-info-panel { grid-template-columns: 1fr; }
+}
+

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Header from './components/Header.jsx';
 import UploadZone from './components/UploadZone.jsx';
 import ServerFetch from './components/ServerFetch.jsx';
+import LiveMonitor from './components/LiveMonitor.jsx';
 import AutoRefreshBar from './components/AutoRefreshBar.jsx';
 import StatsCards from './components/StatsCards.jsx';
 import MemoryChart from './components/MemoryChart.jsx';
@@ -56,7 +57,7 @@ export default function App() {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
   const [activeTab, setActiveTab] = useState(0);
-  const [sourceMode, setSourceMode] = useState('upload');
+  const [sourceMode, setSourceMode] = useState('upload'); // 'upload' | 'server' | 'live'
 
   const [serverConfig, setServerConfig]   = useState(null);
   const [lastFetched, setLastFetched]     = useState(null);
@@ -258,11 +259,17 @@ export default function App() {
             >
               🖥️ Fetch from Server
             </button>
+            <button
+              className={`source-tab ${sourceMode === 'live' ? 'active' : ''}`}
+              onClick={() => setSourceMode('live')}
+            >
+              🔴 Live Monitor
+            </button>
           </div>
 
           {sourceMode === 'upload' ? (
             <UploadZone onUpload={handleUpload} onSample={handleSample} loading={loading} error={error} />
-          ) : (
+          ) : sourceMode === 'server' ? (
             <div className="server-fetch-page">
               <ServerFetch onFetch={handleRemoteFetch} loading={loading} error={error} />
               <div className="sftp-demo-divider">or</div>
@@ -270,6 +277,8 @@ export default function App() {
                 🎯 Load sample data (demo)
               </button>
             </div>
+          ) : (
+            <LiveMonitor />
           )}
         </div>
       ) : (
