@@ -340,49 +340,59 @@ function parseLiveOutput(raw) {
   return metrics;
 }
 
+// ── Live-metrics shell script ─────────────────────────────────────────────────
+// IMPORTANT: joined with '\n', not '; ', so the if/then/fi construct is
+// valid in every POSIX shell (bash, dash, sh).  Joining with '; ' causes
+// "then;" which is a syntax error in dash/sh — the entire script would fail
+// to parse and return no output, leaving all graph values null.
+//
+// Performance rules:
+//  • Never read /proc/$PID/smaps directly — it can be 200-500 MB for a Java
+//    process and takes 20-60 s.  Use /proc/$PID/smaps_rollup (tiny, < 1 ms).
+//  • top -bn1 can stall for 1-3 s; run it last so it doesn't block other data.
 const LIVE_SHELL_CMD = [
-  // ── PID detection — same primary command as the diagnostics tool (SystemDiagnosticsService):
-  //   ps -aux | grep '[s]erver'  →  extract PID from column 2
-  'PID=$(ps -aux | grep \'[s]erver\' | awk \'NR==1{print $2}\')',
-  // Fallbacks: pid file, pgrep java, broad search
+  // ── PID detection — primary method matches the diagnostics tool exactly:
+  //    ps -aux | grep '[s]erver'  →  PID is column 2
+  'PID=$(ps -aux | grep "[s]erver" | awk \'NR==1{print $2}\')',
   '[ -z "$PID" ] && PID=$(cat /var/siemens/common/pid 2>/dev/null | tr -d "[:space:]" | head -c 10)',
   '[ -z "$PID" ] && PID=$(pgrep -f java 2>/dev/null | head -1)',
-  '[ -z "$PID" ] && PID=$(ps -eo pid,cmd --no-headers 2>/dev/null | grep -iE "java|server" | grep -v grep | head -1 | awk \'{print $1}\')',
   'printf "<<<PID>>>%s\\n" "$PID"',
-  // First CPU stat sample — taken before any heavy I/O
+
+  // ── CPU sample 1 — taken before any slower I/O
   'printf "<<<CPU_STAT1>>>%s\\n" "$(awk \'NR==1\' /proc/stat)"',
-  // ── Process metrics — commands mirror the diagnostics tool (SystemDiagnosticsService)
-  'if [ -n "$PID" ] && [ -d "/proc/$PID" ]; then',
-  // CMD 4 equivalent: VmRSS / VmSize from /proc/pid/status
+
+  // ── Process-level metrics (only when PID is found).
+  // Uses a subshell ( ... ) || true instead of if/then/fi to avoid the
+  // "then;" portability issue when joined with '; '.
+  '( [ -n "$PID" ] && [ -d "/proc/$PID" ] && {',
   '  echo "<<<STATUS_START>>>"',
   '  cat /proc/$PID/status 2>/dev/null',
   '  echo "<<<STATUS_END>>>"',
-  // CMD 7 equivalent: anonymous memory — use smaps_rollup (kernel 4.14+, instantaneous)
-  // when available, otherwise fall back to the exact awk one-liner the diagnostics tool uses
+  // Anonymous memory: smaps_rollup is tiny (< 1 ms) — never fall back to
+  // reading the full smaps file which can be hundreds of MB.
   '  echo "<<<ANON_START>>>"',
-  '  { [ -f "/proc/$PID/smaps_rollup" ] && grep -i anon /proc/$PID/smaps_rollup 2>/dev/null | awk \'{sum+=$2} END {printf "%.2f\\n", sum/1024}\'; } 2>/dev/null || grep -i anon /proc/$PID/smaps 2>/dev/null | awk \'{sum+=$2} END {printf "%.2f\\n", sum/1024}\' || echo "0"',
+  '  grep -i anon /proc/$PID/smaps_rollup 2>/dev/null | awk \'{sum+=$2} END {printf "%.2f\\n", sum/1024}\' || echo "0"',
   '  echo "<<<ANON_END>>>"',
-  // Thread count via task directory
   '  printf "<<<THREADS>>>%s\\n" "$(ls /proc/$PID/task 2>/dev/null | wc -l)"',
-  // CMD 10 equivalent: connections for this PID — same command as diagnostics tool: ss -antp | grep <pid>
-  '  printf "<<<CONNECTIONS>>>%s\\n" "$(ss -antp 2>/dev/null | grep "$PID" | wc -l || echo 0)"',
-  'fi',
-  // Wait 1 s then take second CPU sample — the inline delta lets the first
-  // API call already return meaningful CPU percentages without needing a
-  // cached reading from a previous request.
+  // Connections: grep for "pid=<PID>," to avoid matching port numbers
+  '  printf "<<<CONNECTIONS>>>%s\\n" "$(ss -antp 2>/dev/null | grep -F "pid=$PID," | wc -l || echo 0)"',
+  '} ) || true',
+
+  // ── Sleep 1 s then take CPU sample 2 for an inline delta
   'sleep 1',
   'printf "<<<CPU_STAT2>>>%s\\n" "$(awk \'NR==1\' /proc/stat)"',
-  // System memory
+
+  // ── System-level metrics
   'echo "<<<MEMINFO_START>>>"',
   'cat /proc/meminfo 2>/dev/null | head -8',
   'echo "<<<MEMINFO_END>>>"',
-  // Load average
   'printf "<<<LOADAVG>>>%s\\n" "$(cat /proc/loadavg 2>/dev/null)"',
-  // top output (full process list for CPU monitoring)
+
+  // ── top output — run last so any delay doesn't block the metrics above
   'echo "<<<TOP_START>>>"',
-  'top -bn1 -w 120 2>/dev/null | head -25 || top -bn1 2>/dev/null | head -25',
+  'top -bn1 2>/dev/null | head -25 || true',
   'echo "<<<TOP_END>>>"',
-].join('; ');
+].join('\n');
 
 /**
  * POST /api/live/metrics
